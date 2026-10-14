@@ -1,0 +1,9 @@
+[project]
+name = "briefing-validator"
+version = "0.1.0"
+description = "Validates sales call briefings against the briefing contract"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

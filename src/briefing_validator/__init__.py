@@ -1,0 +1,1 @@
+"""Sales call briefing validator."""
