@@ -1,0 +1,76 @@
+[
+  {
+    "sample_id": "SB-01",
+    "company_name": "Gusto",
+    "fetched_urls": [
+      "https://gusto.com/",
+      "https://gusto.com/about",
+      "https://gusto.com/company-news",
+      "https://gusto.com/product/pricing",
+      "https://gusto.com/partners"
+    ],
+    "briefing_markdown": "## What the company does\nGusto provides payroll, benefits and HR software built for small businesses (https://gusto.com/about). The company was founded in 2011 and is headquartered in San Francisco (https://gusto.com/about). Its platform combines full-service payroll, health benefits, time tracking and hiring tools in one account (https://gusto.com/). Gusto runs a partner program for accountants and bookkeepers who manage payroll on behalf of their clients (https://gusto.com/partners).\n\n## What changed in the last 90 days\nGusto's company news page lists press releases published since December 2024 on product updates for small-business employers (https://gusto.com/company-news). The same page lists announcements about partner integrations and research on small-business hiring (https://gusto.com/company-news).\n\n## Three talking points\n1. Gusto sells Simple, Plus and Premium payroll plans, so ask which plan the prospect uses today and what would push them to upgrade (https://gusto.com/product/pricing).\n2. Gusto's partner program serves accounting firms, so ask whether an outside accountant currently runs their payroll (https://gusto.com/partners).\n3. Gusto bundles benefits administration with payroll, so ask how the team handles benefits enrollment for new hires today (https://gusto.com/).\n\nTool calls used: 6",
+    "expected_valid": true
+  },
+  {
+    "sample_id": "SB-02",
+    "company_name": "Calendly",
+    "fetched_urls": [
+      "https://calendly.com/",
+      "https://calendly.com/about",
+      "https://calendly.com/pricing",
+      "https://calendly.com/blog"
+    ],
+    "briefing_markdown": "## What the company does\nCalendly is a scheduling platform that lets people share a booking link so others can pick an open time on their calendar (https://calendly.com/). The company was founded by Tope Awotona in 2013 and is headquartered in Atlanta (https://calendly.com/about). Its pricing page lists a free plan alongside paid Standard, Teams and Enterprise tiers (https://calendly.com/pricing).\nNot found in sources\nCalendly connects with Google Calendar, Microsoft Outlook and other calendar systems so bookings sync automatically (https://calendly.com/).\n\n## What changed in the last 90 days\nNot found in sources\n\n## Three talking points\n1. Calendly offers a free plan as well as paid tiers, so ask whether the team pays for scheduling today or relies on the free plan (https://calendly.com/pricing).\n2. Calendly's blog publishes scheduling guides for sales and recruiting teams, so ask which team in the company books the most external meetings (https://calendly.com/blog).\n3. Calendly syncs with Google and Microsoft calendars, so ask which calendar system the prospect's team runs on (https://calendly.com/).\n\nTool calls used: 5",
+    "expected_valid": true
+  },
+  {
+    "sample_id": "SB-03",
+    "company_name": "Asana",
+    "fetched_urls": [
+      "https://asana.com/",
+      "https://asana.com/company",
+      "https://asana.com/pricing",
+      "https://asana.com/press",
+      "https://asana.com/customers"
+    ],
+    "briefing_markdown": "## What the company does\nAsana is a work management platform that teams use to plan, track and coordinate projects and goals (https://asana.com/). The company was founded in 2008 by Dustin Moskovitz and Justin Rosenstein and is headquartered in San Francisco (https://asana.com/company). Asana's customer stories page features organizations across technology, healthcare, retail and the public sector (https://asana.com/customers).\n\n## What changed in the last 90 days\nNot found in sources\n\n## Three talking points\n1. Asana offers a free Personal plan plus paid Starter, Advanced and Enterprise tiers, so ask how many seats the prospect pays for today (https://asana.com/pricing).\n2. Asana's homepage promotes AI features built into its workflows, so ask whether the team has tried AI for project intake or status updates (https://asana.com/).\n3. Asana's customer stories describe rollouts that span several departments, so ask which teams outside the core group would need access (https://asana.com/customers).\n\nTool calls used: 8",
+    "expected_valid": true
+  },
+  {
+    "sample_id": "SB-04",
+    "company_name": "Zendesk",
+    "fetched_urls": [
+      "https://www.zendesk.com/",
+      "https://www.zendesk.com/company/",
+      "https://www.zendesk.com/pricing/",
+      "https://www.zendesk.com/newsroom/"
+    ],
+    "briefing_markdown": "## What the company does\nZendesk sells customer service software that brings email, chat, voice and social messaging into one agent workspace (https://www.zendesk.com/). The company was founded in Copenhagen in 2007 and is now headquartered in San Francisco (https://www.zendesk.com/company/). Zendesk also offers AI agents that answer common customer questions before they reach a human (https://www.zendesk.com/).\n\n## Three talking points\n1. Zendesk's pricing page lists Suite plans billed per agent, so ask how many support agents the prospect staffs today (https://www.zendesk.com/pricing/).\n2. Zendesk's newsroom highlights its AI agent announcements, so ask whether the team tracks how many tickets could be resolved without a human agent (https://www.zendesk.com/newsroom/).\n3. Zendesk serves both small teams and large enterprises, so ask whether the prospect expects its support volume to grow this year (https://www.zendesk.com/company/).\n\nTool calls used: 6",
+    "expected_valid": false
+  },
+  {
+    "sample_id": "SB-05",
+    "company_name": "Mailchimp",
+    "fetched_urls": [
+      "https://mailchimp.com/",
+      "https://mailchimp.com/about/",
+      "https://mailchimp.com/pricing/",
+      "https://mailchimp.com/newsroom/"
+    ],
+    "briefing_markdown": "## What the company does\nMailchimp is an email marketing and automation platform aimed at small and growing businesses (https://mailchimp.com/). The company was founded in Atlanta in 2001 (https://mailchimp.com/about/). Mailchimp has been part of Intuit since its acquisition in 2021. Its platform covers email campaigns, customer journeys, audience segmentation and SMS marketing (https://mailchimp.com/).\n\n## What changed in the last 90 days\nMailchimp's newsroom lists announcements from early 2025 about automation and analytics features for marketers (https://mailchimp.com/newsroom/).\n\n## Three talking points\n1. Mailchimp's pricing page lists Free, Essentials, Standard and Premium plans priced by contact count, so ask how large the prospect's mailing list is today (https://mailchimp.com/pricing/).\n2. Mailchimp promotes customer journey automations, so ask which follow-up emails the team still sends by hand (https://mailchimp.com/).\n3. Mailchimp's about page describes its long focus on small businesses, so ask how the prospect's marketing needs have changed as the company has grown (https://mailchimp.com/about/).\n\nTool calls used: 7",
+    "expected_valid": false
+  },
+  {
+    "sample_id": "SB-06",
+    "company_name": "Canva",
+    "fetched_urls": [
+      "https://www.canva.com/",
+      "https://www.canva.com/about/",
+      "https://www.canva.com/newsroom/",
+      "https://www.canva.com/pricing/"
+    ],
+    "briefing_markdown": "## What the company does\nCanva is an online visual communication platform for creating presentations, social posts, videos and print designs (https://www.canva.com/). It was founded in 2013 by Melanie Perkins, Cliff Obrecht and Cameron Adams and is headquartered in Sydney (https://www.canva.com/about/). Canva offers team workspaces with shared brand kits and templates (https://www.canva.com/).\n\n## What changed in the last 90 days\nCanva's newsroom lists announcements from early 2025 about AI design features and new tools for workplace teams (https://www.canva.com/newsroom/).\n\n## Three talking points\n1. Canva's pricing page lists Free, Pro, Teams and Enterprise plans, so ask which plan the prospect's marketing team uses today (https://www.canva.com/pricing/).\n2. Canva Enterprise adds single sign-on and admin controls for large organizations, so ask how many design seats the prospect manages centrally (https://www.canva.com/enterprise/).\n3. Canva's about page describes a mission to empower everyone to design, so ask how many non-designers on the team create their own content (https://www.canva.com/about/).\n\nTool calls used: 6",
+    "expected_valid": false
+  }
+]
