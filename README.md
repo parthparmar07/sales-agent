@@ -60,6 +60,43 @@ python -m briefing_validator tests/data/briefings.json
 
 This prints each verdict with its reasons. The exit code is 1 if any verdict differs from `expected_valid`.
 
+## Research agent
+
+`src/research_agent/` is a LangGraph graph that gathers source pages for a briefing using Tavily search.
+
+```
+START -> start -> search <-> search ... -> finish -> END
+```
+
+**State** (`ResearchState` in [state.py](src/research_agent/state.py)):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `company_name`, `website_url` | `str` | The prospect being researched. |
+| `queries` | `list[dict]` | Planned searches, each `{"query", "params"}`. |
+| `pages` | `list[Page]` | Every fetched page as `{"url": str, "text": str}`: URL and text together. |
+| `search_log` | `list[dict]` | One entry per search: `query`, `status` (`ok` / `empty` / `timeout`), `result_count`. |
+| `tool_calls` | `int` | Searches made so far. |
+| `timed_out` | `bool` | `True` once any search times out. |
+| `stop_reason`, `record_path` | `str` | Set by `finish`. |
+
+**Rules the graph follows:**
+
+- **Counting:** the `search` node increments `tool_calls` itself, before it calls Tavily. A search that times out still counts against the budget.
+- **Routing:** after every search, `route_after_search` exits to `finish` if `timed_out` is true, or if `tool_calls` has reached the budget of 8, or if no planned queries are left. Any one of these is enough on its own.
+- **Empty results:** the search is logged as `empty`, no pages are added, and the graph moves on to the next query.
+- **Timeouts:** both Python's `TimeoutError` and Tavily's `tavily.errors.TimeoutError` are caught. The node sets `timed_out = True` in state and logs the search as `timeout`, and the graph exits.
+- **Run records:** `finish` writes each run to its own new file, `runs/<timestamp>_<company>_<id>.json`. The file is opened with mode `x`, so an existing record is never overwritten or appended to. The record holds the company, website, fetched URLs, tool calls, timeout flag, stop reason and search log.
+
+Run it live (requires `TAVILY_API_KEY` in `.env`):
+
+```
+python -m research_agent --company Allbirds --url https://www.allbirds.com
+python -m research_agent --csv data/test_companies.csv
+```
+
+`data/test_companies.csv` holds the 10 HubSpot first-call test companies (TC-01 to TC-10). The tests in `tests/test_research_graph.py` use a fake search client, so they run without network access or keys.
+
 ## Briefing contract
 
 A briefing is valid only if it follows every rule below.
