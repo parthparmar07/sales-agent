@@ -228,6 +228,29 @@ SB-06: INVALID  (matches expected)
   - cited URL was not fetched: https://www.canva.com/enterprise/
 ```
 
-### Live research run
+### Live research run (TC-01, Allbirds)
 
-Not recorded yet. `TAVILY_API_KEY` and `LANGSMITH_API_KEY` are empty in `.env`, so there is no live Tavily run, no `runs/*.json` file and no public trace. The graph has only been exercised with the fake search client in the tests above.
+Run on 2026-10-16 against Tavily with LangSmith tracing on. Command `python -m research_agent --company Allbirds --url https://www.allbirds.com`. The output is pasted in full and unedited, including the deprecation warning printed on stderr:
+
+```
+C:\Users\Parth\OneDrive\Desktop\sales agent\src\research_agent\__main__.py:28: DeprecationWarning: share_run() is deprecated and will be removed after Jan 31, 2027. Use client.runs.share.create() instead. See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#share-and-read-public-runs for the migration guide.
+  return Client().share_run(run_id)
+Allbirds (https://www.allbirds.com): 5 tool calls, stopped on queries_exhausted
+  - https://www.allbirds.com/pages/our-story
+  - https://www.allbirds.com/collections/womens
+  - https://www.allbirds.com/collections/mens
+  - https://www.nbcnews.com/tech/tech-news/allbirds-buzzy-shoe-startup-pivots-ai-rcna331943
+  - https://www.cnbc.com/2026/04/15/allbirds-bird-stock-shoes-ai.html
+  - https://www.bbc.com/news/articles/c98mrepzgj7o
+  - https://www.allbirds.com/products/mens-runner-nz-slip-on-burnt-olive?a_ajs_event=Product+Clicked&a_ajs_prop_currency=USD&a_ajs_prop_currency_symbol=%24&a_ajs_prop_collection_handle=mens-loungers&a_ajs_prop_collection_name=Men%27s+Slip+Ons&a_ajs_prop_collection_parent=Mens&a_ajs_prop_collection_style_count=1&a_ajs_prop_collection_type=PARENT_COLLECTION&a_ajs_prop_collection_url=https%3A%2F%2Fwww.allbirds.com%2Fcollections%2Fmens-loungers&a_ajs_prop_list_id=135958495312&a_ajs_prop_is_markdown_collection=false&a_ajs_prop_products=a_ajs_prop_type_object%5B%7B%22category%22%3A%22Shoes%22%2C%22color_name%22%3A%22Burnt+Olive+%28Burnt+Olive+Sole%29%22%2C%22edition%22%3A%22Limited%22%2C%22gender%22%3A%22Mens%22%2C%22handle%22%3A%22mens-runner-nz-slip-on-burnt-olive%22%2C%22hue%22%3A%22Green%22%2C%22image_url%22%3A%22%2F%2Fwww.allbirds.com%2Fcdn%2Fshop%2Ffiles%2FA12471_26Q1_Runner-NZ-Slip-On-Burnt-Olive-Burnt-Olive-Sole_PDP_LEFT.png%3Fv%3D1768951144%22%2C%22material%22%3A%22Tree%22%2C%22name%22%3A%22Men%27s+Runner+NZ+Slip+On%22%2C%22on_sale%22%3Afalse%2C%22price%22%3A105%2C%22price_tier%22%3A%22msrp%22%2C%22product_id%22%3A%227205204000848%22%2C%22silhouette%22%3A%22Lounger%22%2C%22url%22%3A%22%2Fproducts%2Fmens-runner-nz-slip-on-burnt-olive%22%2C%22position%22%3A%222%22%7D%5D
+  - https://www.allbirds.com/collections/sale-womens
+  - https://www.allbirds.com/pages/introducing-the-tree-gliders
+  - https://www.allbirds.com/blogs/news/allbirds-uber-eats-press-release
+  - https://www.allbirds.com/pages/allbirds-terms-of-use-wholesale
+  record: runs/20261016T061635Z_allbirds_2aa459e3.json
+  trace: https://smith.langchain.com/public/3cab09a6-c550-4d90-a79d-d330788e416e/r
+```
+
+- Record: [runs/20261016T061635Z_allbirds_2aa459e3.json](runs/20261016T061635Z_allbirds_2aa459e3.json), committed as written.
+- Public trace: https://smith.langchain.com/public/3cab09a6-c550-4d90-a79d-d330788e416e/r. I checked access with a request that sent no credentials: `GET https://api.smith.langchain.com/public/3cab09a6-c550-4d90-a79d-d330788e416e/run` returned HTTP 200 with the run `research: Allbirds`, status `success`.
+- Check against `website_url`: 8 of the 11 fetched URLs are on `www.allbirds.com`. The other 3 (NBC News, CNBC, BBC) come from the news query, which is deliberately not limited to the company's domain.
