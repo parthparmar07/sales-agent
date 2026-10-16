@@ -65,28 +65,36 @@ This prints each verdict with its reasons. The exit code is 1 if any verdict dif
 `src/research_agent/` is a LangGraph graph that gathers source pages for a briefing using Tavily search.
 
 ```
-START -> start -> search <-> search ... -> finish -> END
+START -> planner -> search <-> search ... -> writer -> END
 ```
+
+- **planner** sets `queries` (one per briefing need; company-site queries are limited to the company's domain).
+- **search** runs one planned query per visit and loops until a stop condition is met.
+- **writer** owns `briefing`. It is a stub for now: it writes the contract's three headings with `Not found in sources` and the `Tool calls used: N` line. The LLM writer replaces it next stage.
 
 **State** (`ResearchState` in [state.py](src/research_agent/state.py)):
 
 | Field | Type | Meaning |
 |---|---|---|
 | `company_name`, `website_url` | `str` | The prospect being researched. |
-| `queries` | `list[dict]` | Planned searches, each `{"query", "params"}`. |
-| `pages` | `list[Page]` | Every fetched page as `{"url": str, "text": str}`: URL and text together. |
+| `queries` | `list[dict]` | Planned searches from the planner, each `{"query", "params"}`. |
+| `pages` | `list[Page]` | Every fetched page as `{"url": str, "text": str}`. Both are always non-empty. |
 | `search_log` | `list[dict]` | One entry per search: `query`, `status` (`ok` / `empty` / `timeout`), `result_count`. |
 | `tool_calls` | `int` | Searches made so far. |
 | `timed_out` | `bool` | `True` once any search times out. |
-| `stop_reason`, `record_path` | `str` | Set by `finish`. |
+| `briefing` | `str` | The briefing Markdown, set by the writer. |
+
+The stop reason, trace link and record path are not in state. They only go into the run record.
 
 **Rules the graph follows:**
 
 - **Counting:** the `search` node increments `tool_calls` itself, before it calls Tavily. A search that times out still counts against the budget.
-- **Routing:** after every search, `route_after_search` exits to `finish` if `timed_out` is true, or if `tool_calls` has reached the budget of 8, or if no planned queries are left. Any one of these is enough on its own.
-- **Empty results:** the search is logged as `empty`, no pages are added, and the graph moves on to the next query.
-- **Timeouts:** both Python's `TimeoutError` and Tavily's `tavily.errors.TimeoutError` are caught. The node sets `timed_out = True` in state and logs the search as `timeout`, and the graph exits.
-- **Run records:** `finish` writes each run to its own new file, `runs/<timestamp>_<company>_<id>.json`. The file is opened with mode `x`, so an existing record is never overwritten or appended to. The record holds the company, website, fetched URLs, tool calls, timeout flag, stop reason and search log.
+- **Routing:** after every search, `route_after_search` goes to the writer if any one of these is true: `timed_out`, the last search was `empty`, `tool_calls` reached the budget of 8, or no planned queries are left.
+- **Empty results:** a search with no usable pages is logged as `empty`, and the graph stops searching and goes to the writer, the same as a timeout. A result with a URL but no text is dropped rather than stored as a half-filled page.
+- **Timeouts:** both Python's `TimeoutError` and Tavily's `tavily.errors.TimeoutError` are caught. The node sets `timed_out = True` in state, logs the search as `timeout`, and the graph goes to the writer.
+- **Run records:** `write_run_record` writes each finished run to its own new file, `runs/<timestamp>_<company>_<id>.json`. The file is opened with mode `x`, so an existing record is never overwritten or appended to. The record holds the company, website, fetched URLs, tool calls, timeout flag, stop reason, search log, briefing and trace link.
+
+**Tracing:** LangSmith records a LangGraph run only when `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` are both set (`LANGSMITH_PROJECT` picks the project). With tracing on, the CLI waits for the trace to upload, makes it public with `Client.share_run`, prints the link and saves it in the run record.
 
 Run it live (requires `TAVILY_API_KEY` in `.env`):
 
@@ -94,6 +102,8 @@ Run it live (requires `TAVILY_API_KEY` in `.env`):
 python -m research_agent --company Allbirds --url https://www.allbirds.com
 python -m research_agent --csv data/test_companies.csv
 ```
+
+For each company it prints the tool-call count, the stop reason, every fetched URL, the record path and the trace link.
 
 `data/test_companies.csv` holds the 10 HubSpot first-call test companies (TC-01 to TC-10). The tests in `tests/test_research_graph.py` use a fake search client, so they run without network access or keys.
 
@@ -160,27 +170,51 @@ A briefing may use at most **8** tool calls. `N` must be between 0 and 8.
 
 ## Run record
 
-Run on 2026-10-14 with Python 3.13.2. Both blocks are pasted output, unedited.
+### Test suite
 
-`pytest -v` checks each verdict against `expected_valid` and each rejection reason against an exact expected error:
+Run on 2026-10-16 with Python 3.13.2 on the commit that adds this record. Output of `pytest -v --no-header -p no:cacheprovider`, pasted in full and unedited. It covers both test files: `test_validator.py` (12 tests) and `test_research_graph.py` (18 tests).
 
 ```
-tests/test_validator.py::test_verdict_matches_expected[SB-01] PASSED     [  8%]
-tests/test_validator.py::test_verdict_matches_expected[SB-02] PASSED     [ 16%]
-tests/test_validator.py::test_verdict_matches_expected[SB-03] PASSED     [ 25%]
-tests/test_validator.py::test_verdict_matches_expected[SB-04] PASSED     [ 33%]
-tests/test_validator.py::test_verdict_matches_expected[SB-05] PASSED     [ 41%]
-tests/test_validator.py::test_verdict_matches_expected[SB-06] PASSED     [ 50%]
-tests/test_validator.py::test_rejection_reason[SB-01] PASSED             [ 58%]
-tests/test_validator.py::test_rejection_reason[SB-02] PASSED             [ 66%]
-tests/test_validator.py::test_rejection_reason[SB-03] PASSED             [ 75%]
-tests/test_validator.py::test_rejection_reason[SB-04] PASSED             [ 83%]
-tests/test_validator.py::test_rejection_reason[SB-05] PASSED             [ 91%]
+============================= test session starts =============================
+collecting ... collected 30 items
+
+tests/test_research_graph.py::test_page_holds_url_and_text PASSED        [  3%]
+tests/test_research_graph.py::test_timeout_field_is_bool PASSED          [  6%]
+tests/test_research_graph.py::test_state_has_briefing_string PASSED      [ 10%]
+tests/test_research_graph.py::test_pages_in_final_state_have_url_and_text PASSED [ 13%]
+tests/test_research_graph.py::test_result_without_text_is_not_stored PASSED [ 16%]
+tests/test_research_graph.py::test_planner_sets_queries PASSED           [ 20%]
+tests/test_research_graph.py::test_search_node_increments_counter_itself PASSED [ 23%]
+tests/test_research_graph.py::test_counter_equals_real_search_calls PASSED [ 26%]
+tests/test_research_graph.py::test_route_continues_under_budget_without_timeout PASSED [ 30%]
+tests/test_research_graph.py::test_route_exits_at_budget_alone PASSED    [ 33%]
+tests/test_research_graph.py::test_route_exits_on_timeout_alone PASSED   [ 36%]
+tests/test_research_graph.py::test_route_exits_on_empty_results_alone PASSED [ 40%]
+tests/test_research_graph.py::test_graph_stops_at_budget PASSED          [ 43%]
+tests/test_research_graph.py::test_timeout_sets_flag_and_goes_to_writer[builtin] PASSED [ 46%]
+tests/test_research_graph.py::test_timeout_sets_flag_and_goes_to_writer[tavily] PASSED [ 50%]
+tests/test_research_graph.py::test_empty_results_stop_search_and_go_to_writer PASSED [ 53%]
+tests/test_research_graph.py::test_record_has_company_urls_and_stop_reason PASSED [ 56%]
+tests/test_research_graph.py::test_each_run_writes_its_own_record PASSED [ 60%]
+tests/test_validator.py::test_verdict_matches_expected[SB-01] PASSED     [ 63%]
+tests/test_validator.py::test_verdict_matches_expected[SB-02] PASSED     [ 66%]
+tests/test_validator.py::test_verdict_matches_expected[SB-03] PASSED     [ 70%]
+tests/test_validator.py::test_verdict_matches_expected[SB-04] PASSED     [ 73%]
+tests/test_validator.py::test_verdict_matches_expected[SB-05] PASSED     [ 76%]
+tests/test_validator.py::test_verdict_matches_expected[SB-06] PASSED     [ 80%]
+tests/test_validator.py::test_rejection_reason[SB-01] PASSED             [ 83%]
+tests/test_validator.py::test_rejection_reason[SB-02] PASSED             [ 86%]
+tests/test_validator.py::test_rejection_reason[SB-03] PASSED             [ 90%]
+tests/test_validator.py::test_rejection_reason[SB-04] PASSED             [ 93%]
+tests/test_validator.py::test_rejection_reason[SB-05] PASSED             [ 96%]
 tests/test_validator.py::test_rejection_reason[SB-06] PASSED             [100%]
-============================= 12 passed in 0.05s ==============================
+
+============================= 30 passed in 1.99s ==============================
 ```
 
-`python -m briefing_validator tests/data/briefings.json` prints the validator's own verdicts and reasons:
+### Validator on the six sample briefings
+
+Output of `python -m briefing_validator tests/data/briefings.json`, pasted in full and unedited:
 
 ```
 SB-01: VALID  (matches expected)
@@ -193,3 +227,7 @@ SB-05: INVALID  (matches expected)
 SB-06: INVALID  (matches expected)
   - cited URL was not fetched: https://www.canva.com/enterprise/
 ```
+
+### Live research run
+
+Not recorded yet. `TAVILY_API_KEY` and `LANGSMITH_API_KEY` are empty in `.env`, so there is no live Tavily run, no `runs/*.json` file and no public trace. The graph has only been exercised with the fake search client in the tests above.

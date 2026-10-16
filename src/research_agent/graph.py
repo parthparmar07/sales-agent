@@ -1,4 +1,8 @@
-"""Research graph: search until the tool-call budget is spent, a search times out, or queries run out."""
+"""Research graph: planner -> search (looping) -> writer.
+
+The search loop exits to the writer when the tool-call budget is spent, a search times out,
+a search returns no usable pages, or the planned queries run out.
+"""
 
 import builtins
 import json
@@ -23,6 +27,7 @@ except ImportError:  # tavily not installed; only the built-in timeout can occur
 TIMEOUT_ERRORS = (builtins.TimeoutError, TavilyTimeoutError)
 
 SearchFn = Callable[..., dict]
+PlanFn = Callable[[str, str], list[dict]]
 
 
 def company_domain(website_url: str) -> str:
@@ -42,15 +47,28 @@ def default_queries(company_name: str, website_url: str) -> list[dict]:
     ]
 
 
-def route_after_search(state: ResearchState, budget: int = TOOL_CALL_BUDGET) -> str:
-    """Exit when the budget is spent OR a search timed out OR no queries are left. Each alone is enough."""
+def stop_reason(state: ResearchState, budget: int = TOOL_CALL_BUDGET) -> str | None:
+    """Why the search loop must stop now, or None to keep searching. Each condition alone is enough."""
     if state["timed_out"]:
-        return "finish"
+        return "timeout"
+    if state["search_log"] and state["search_log"][-1]["status"] == "empty":
+        return "empty_results"
     if state["tool_calls"] >= budget:
-        return "finish"
+        return "budget"
     if state["tool_calls"] >= len(state["queries"]):
-        return "finish"
-    return "search"
+        return "queries_exhausted"
+    return None
+
+
+def route_after_search(state: ResearchState, budget: int = TOOL_CALL_BUDGET) -> str:
+    return "search" if stop_reason(state, budget) is None else "writer"
+
+
+def make_planner_node(plan_fn: PlanFn):
+    def planner(state: ResearchState) -> dict:
+        return {"queries": plan_fn(state["company_name"], state["website_url"])}
+
+    return planner
 
 
 def make_search_node(search_fn: SearchFn):
@@ -68,95 +86,100 @@ def make_search_node(search_fn: SearchFn):
             }
 
         results = (response or {}).get("results") or []
+        # A page needs both a URL and text; a result missing either is dropped, never stored half-filled.
+        usable = [
+            {"url": r["url"], "text": r.get("raw_content") or r.get("content")}
+            for r in results
+            if r.get("url") and (r.get("raw_content") or r.get("content"))
+        ]
         seen = {page["url"] for page in state["pages"]}
         new_pages: list[Page] = []
-        for result in results:
-            url = result.get("url")
-            text = result.get("raw_content") or result.get("content") or ""
-            if url and url not in seen:
-                seen.add(url)
-                new_pages.append({"url": url, "text": text})
+        for page in usable:
+            if page["url"] not in seen:
+                seen.add(page["url"])
+                new_pages.append(page)
 
         return {
             "tool_calls": tool_calls,
             "pages": new_pages,
             "search_log": [
-                {"query": planned["query"], "status": "ok" if results else "empty", "result_count": len(results)}
+                {"query": planned["query"], "status": "ok" if usable else "empty", "result_count": len(usable)}
             ],
         }
 
     return search
 
 
+def writer(state: ResearchState) -> dict:
+    # shortcut: writes a contract-shaped skeleton with no facts, replace with the LLM writer in the next stage
+    gap = "Not found in sources"
+    briefing = (
+        f"## What the company does\n{gap}\n\n"
+        f"## What changed in the last 90 days\n{gap}\n\n"
+        f"## Three talking points\n{gap}\n\n"
+        f"Tool calls used: {state['tool_calls']}"
+    )
+    return {"briefing": briefing}
+
+
+def build_graph(search_fn: SearchFn, plan_fn: PlanFn = default_queries, budget: int = TOOL_CALL_BUDGET):
+    route = {"search": "search", "writer": "writer"}
+    graph = StateGraph(ResearchState)
+    graph.add_node("planner", make_planner_node(plan_fn))
+    graph.add_node("search", make_search_node(search_fn))
+    graph.add_node("writer", writer)
+    graph.add_edge(START, "planner")
+    graph.add_conditional_edges("planner", lambda s: route_after_search(s, budget), route)
+    graph.add_conditional_edges("search", lambda s: route_after_search(s, budget), route)
+    graph.add_edge("writer", END)
+    return graph.compile()
+
+
+def initial_state(company_name: str, website_url: str) -> ResearchState:
+    return {
+        "company_name": company_name,
+        "website_url": website_url,
+        "queries": [],
+        "pages": [],
+        "search_log": [],
+        "tool_calls": 0,
+        "timed_out": False,
+        "briefing": "",
+    }
+
+
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
-def write_run_record(state: ResearchState, runs_dir: Path, budget: int, started_at: str) -> Path:
-    """Write this run to its own new file. Mode "x" refuses to overwrite or append to an existing record."""
+def write_run_record(
+    state: ResearchState,
+    runs_dir: Path | str = "runs",
+    budget: int = TOOL_CALL_BUDGET,
+    trace_url: str | None = None,
+) -> Path:
+    """Write one finished run to its own new file. Mode "x" refuses to overwrite or append to an existing record."""
+    runs_dir = Path(runs_dir)
     runs_dir.mkdir(parents=True, exist_ok=True)
-    run_id = f"{started_at.replace(':', '').replace('-', '')}_{_slug(state['company_name'])}_{uuid.uuid4().hex[:8]}"
+    written_at = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = f"{written_at}_{_slug(state['company_name'])}_{uuid.uuid4().hex[:8]}"
     path = runs_dir / f"{run_id}.json"
     record = {
         "run_id": run_id,
         "company_name": state["company_name"],
         "website_url": state["website_url"],
-        "started_at": started_at,
-        "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "tool_calls": state["tool_calls"],
         "budget": budget,
         "timed_out": state["timed_out"],
-        "stop_reason": state["stop_reason"],
+        "stop_reason": stop_reason(state, budget),
         "fetched_urls": [page["url"] for page in state["pages"]],
         "searches": state["search_log"],
+        "briefing": state["briefing"],
+        "trace_url": trace_url,
     }
     with path.open("x", encoding="utf-8") as f:
         json.dump(record, f, indent=2)
     return path
-
-
-def build_graph(search_fn: SearchFn, runs_dir: Path | str = "runs", budget: int = TOOL_CALL_BUDGET):
-    runs_dir = Path(runs_dir)
-    started = {}
-
-    def start(state: ResearchState) -> dict:
-        started["at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        return {}
-
-    def finish(state: ResearchState) -> dict:
-        if state["timed_out"]:
-            reason = "timeout"
-        elif state["tool_calls"] >= budget:
-            reason = "budget"
-        else:
-            reason = "queries_exhausted"
-        state = {**state, "stop_reason": reason}
-        path = write_run_record(state, runs_dir, budget, started["at"])
-        return {"stop_reason": reason, "record_path": str(path)}
-
-    graph = StateGraph(ResearchState)
-    graph.add_node("start", start)
-    graph.add_node("search", make_search_node(search_fn))
-    graph.add_node("finish", finish)
-    graph.add_edge(START, "start")
-    graph.add_conditional_edges("start", lambda s: route_after_search(s, budget), {"search": "search", "finish": "finish"})
-    graph.add_conditional_edges("search", lambda s: route_after_search(s, budget), {"search": "search", "finish": "finish"})
-    graph.add_edge("finish", END)
-    return graph.compile()
-
-
-def initial_state(company_name: str, website_url: str, queries: list[dict] | None = None) -> ResearchState:
-    return {
-        "company_name": company_name,
-        "website_url": website_url,
-        "queries": queries if queries is not None else default_queries(company_name, website_url),
-        "pages": [],
-        "search_log": [],
-        "tool_calls": 0,
-        "timed_out": False,
-        "stop_reason": "",
-        "record_path": "",
-    }
 
 
 def tavily_search_fn(api_key: str, timeout: float = 20) -> SearchFn:

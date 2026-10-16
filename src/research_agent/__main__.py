@@ -1,4 +1,4 @@
-"""Run the research graph live against Tavily.
+"""Run the research graph live against Tavily, write a run record, and share the LangSmith trace.
 
 python -m research_agent --company Allbirds --url https://www.allbirds.com
 python -m research_agent --csv data/test_companies.csv
@@ -8,10 +8,24 @@ import argparse
 import csv
 import os
 import sys
+import uuid
 
 from dotenv import load_dotenv
 
-from research_agent.graph import build_graph, initial_state, tavily_search_fn
+from research_agent.graph import build_graph, initial_state, stop_reason, tavily_search_fn, write_run_record
+
+
+def share_trace(run_id: uuid.UUID) -> str | None:
+    """Return a public LangSmith link for this run, or None when tracing is off."""
+    from langsmith.utils import tracing_is_enabled
+
+    if not tracing_is_enabled():
+        return None
+    from langchain_core.tracers.langchain import wait_for_all_tracers
+    from langsmith import Client
+
+    wait_for_all_tracers()  # the run must be uploaded before it can be shared
+    return Client().share_run(run_id)
 
 
 def main() -> int:
@@ -36,11 +50,17 @@ def main() -> int:
     else:
         parser.error("pass --company and --url, or --csv")
 
-    graph = build_graph(tavily_search_fn(api_key), runs_dir=args.runs_dir)
+    graph = build_graph(tavily_search_fn(api_key))
     for name, url in companies:
-        final = graph.invoke(initial_state(name, url))
-        print(f"{name}: {final['tool_calls']} tool calls, {len(final['pages'])} pages, "
-              f"stopped on {final['stop_reason']} -> {final['record_path']}")
+        run_id = uuid.uuid4()
+        final = graph.invoke(initial_state(name, url), config={"run_id": run_id, "run_name": f"research: {name}"})
+        trace_url = share_trace(run_id)
+        path = write_run_record(final, args.runs_dir, trace_url=trace_url)
+        print(f"{name} ({url}): {final['tool_calls']} tool calls, stopped on {stop_reason(final)}")
+        for page in final["pages"]:
+            print(f"  - {page['url']}")
+        print(f"  record: {path.as_posix()}")
+        print(f"  trace: {trace_url or 'tracing off (set LANGSMITH_TRACING=true and LANGSMITH_API_KEY)'}")
     return 0
 
 
